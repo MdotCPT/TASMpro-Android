@@ -43,15 +43,22 @@ public class MainActivity extends Activity {
       @Override public boolean onShowFileChooser(WebView v,ValueCallback<Uri[]> callback,FileChooserParams params){
         if(fileCallback!=null)fileCallback.onReceiveValue(null);fileCallback=callback;
         try{
-          Intent gallery=new Intent(Intent.ACTION_GET_CONTENT);gallery.setType("*/*");gallery.addCategory(Intent.CATEGORY_OPENABLE);
-          gallery.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"image/*","application/json"});
-          File dir=new File(getCacheDir(),"camera");dir.mkdirs();
-          File f=File.createTempFile("photo_",".jpg",dir);
-          cameraUri=FileProvider.getUriForFile(MainActivity.this,getPackageName()+".fileprovider",f);
-          Intent camera=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);camera.putExtra(MediaStore.EXTRA_OUTPUT,cameraUri);
-          camera.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-          if(params.isCaptureEnabled())startActivityForResult(camera,PICK);
-          else{Intent chooser=Intent.createChooser(gallery,"Choose photo or file");chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS,new Intent[]{camera});startActivityForResult(chooser,PICK);}
+          if(params.isCaptureEnabled()){
+            File dir=new File(getCacheDir(),"camera");dir.mkdirs();
+            File f=File.createTempFile("photo_",".jpg",dir);
+            cameraUri=FileProvider.getUriForFile(MainActivity.this,getPackageName()+".fileprovider",f);
+            Intent camera=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            camera.putExtra(MediaStore.EXTRA_OUTPUT,cameraUri);
+            camera.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivityForResult(camera,PICK);
+          }else{
+            cameraUri=null;
+            Intent gallery=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            gallery.addCategory(Intent.CATEGORY_OPENABLE);
+            gallery.setType("image/*");
+            gallery.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(gallery,PICK);
+          }
         }catch(Exception e){fileCallback.onReceiveValue(null);fileCallback=null;toast("Unable to open camera or files");}
         return true;
       }
@@ -73,7 +80,24 @@ public class MainActivity extends Activity {
     fileCallback.onReceiveValue(resultUris);fileCallback=null;cameraUri=null;
   }
   class Bridge{
-    @JavascriptInterface public void printPage(){runOnUiThread(()->{PrintManager pm=(PrintManager)getSystemService(Context.PRINT_SERVICE);pm.print("TASMpro report",web.createPrintDocumentAdapter("TASMpro"),null);});}
+    @JavascriptInterface public void printPage(){runOnUiThread(()->{
+      String js="(function(){var req=document.body.classList.contains('req-unified-print');var el=document.getElementById(req?'reqUnifiedPrint':'printSheet');if(!el)return '';return JSON.stringify({html:el.innerHTML,req:req});})()";
+      web.evaluateJavascript(js, result -> {
+        try{
+          // evaluateJavascript JSON-encodes the returned string once more.
+          String decoded=new org.json.JSONTokener(result).nextValue().toString();
+          org.json.JSONObject data=new org.json.JSONObject(decoded);
+          String css="@page{size:A4;margin:14mm}*{box-sizing:border-box}html,body{background:#fff!important;color:#111!important;font:12px Arial,sans-serif;margin:0}h1{font-size:23px;color:#152f47!important}h2{font-size:17px;color:#152f47!important}p,small,span,div,strong,td,th{color:#111!important}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #bbb;padding:7px;text-align:left}.print-project{break-before:page}.print-project:first-of-type{break-before:auto}.print-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #ddd;break-inside:avoid}.print-item .description{flex:1}.print-item img{width:38%;max-height:95mm;object-fit:contain}.print-item.photo-small img{width:23%}.print-item.photo-large img{width:57%}.print-head{display:flex;justify-content:space-between}.print-logo{max-width:55mm;max-height:22mm}.meta{border-bottom:2px solid #183e60;padding-bottom:10px}.report-cover{display:none!important}.tick{display:inline-block;width:14px;height:14px;border:1px solid #111;margin-right:6px}footer{margin-top:22px}img{max-width:100%}";
+          String doc="<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'><style>"+css+"</style></head><body>"+data.getString("html")+"</body></html>";
+          WebView printable=new WebView(MainActivity.this);
+          printable.getSettings().setJavaScriptEnabled(false);
+          printable.setWebViewClient(new WebViewClient(){@Override public void onPageFinished(WebView v,String url){
+            v.postDelayed(()->{PrintManager pm=(PrintManager)getSystemService(Context.PRINT_SERVICE);pm.print("TASMpro report",v.createPrintDocumentAdapter("TASMpro"),null);},400);
+          }});
+          printable.loadDataWithBaseURL("https://appassets.androidplatform.net/",doc,"text/html","UTF-8",null);
+        }catch(Exception e){toast("Could not prepare report: "+e.getMessage());}
+      });
+    });}
     @JavascriptInterface public void saveBase64(String filename,String mime,String base64){
       new Thread(()->{try{
         String safe=filename.replaceAll("[^a-zA-Z0-9._-]","_");if(safe.isEmpty())safe="TASMpro-file.pdf";
