@@ -878,7 +878,7 @@ for(let i=0;i<objects.length;i++){
 const xref=length;push('xref\n0 '+(objects.length+1)+'\n0000000000 65535 f \n');for(const n of offsets.slice(1))push(String(n).padStart(10,'0')+' 00000 n \n');push('trailer\n<< /Size '+(objects.length+1)+' /Root '+catalog+' 0 R >>\nstartxref\n'+xref+'\n%%EOF');return new Blob(parts,{type:'application/pdf'});
 }
 function getEmailReportProjects(){
- const d=getDb(),all=[...new Set((d?.snags||[]).map(s=>s.project).filter(Boolean))];
+ const all=[...document.querySelectorAll('.projectcheck')].map(x=>x.value);
  const selected=[...document.querySelectorAll('.projectcheck:checked')].map(x=>x.value);
  const tradeMode=$('reportScope').value==='trade';
  const filterArea=$('reportProjectFilterArea');
@@ -886,10 +886,15 @@ function getEmailReportProjects(){
  return tradeMode&&!filterOpen?all:selected;
 }
 function getDb(){for(const k of ['plotsnag_v3','plotsnag_v2','snagsmith_db']){try{const d=JSON.parse(localStorage.getItem(k)||'null');if(d?.snags)return d}catch(e){}}return null}
+async function getEmailDb(){
+ const legacy=getDb();
+ if(!window.indexedDB)return legacy;
+ return new Promise(resolve=>{try{const req=indexedDB.open('tasmpro_snags_v1',1);req.onerror=()=>resolve(legacy);req.onsuccess=()=>{const tx=req.result.transaction('records','readonly');const r=tx.objectStore('records').get('main');r.onsuccess=()=>{const value=r.result;resolve(value&&Array.isArray(value.snags)?value:legacy)};r.onerror=()=>resolve(legacy)}}catch(e){resolve(legacy)}});
+}
 $('draftTradeEmail').addEventListener('click',async()=>{
  const isTrade=$('reportScope').value==='trade',trade=isTrade?$('reportTrade').value:'All trades',plots=getEmailReportProjects();
  if(!plots.length){tasmNotice('Select at least one plot.');return}
- const db=getDb();if(!db){tasmNotice('Could not access saved snags for PDF creation.');return}
+ const db=await getEmailDb();if(!db){tasmNotice('Could not access saved snags for PDF creation.');return}
  const status=$('reportStatus').value,items=db.snags.filter(r=>plots.includes(r.project)&&(!isTrade||r.trade===trade)&&(status==='all'||(status==='open'?r.status!=='done':r.status==='done')));
  if(!items.length){tasmNotice('No matching snags.');return}
  const button=$('draftTradeEmail');button.disabled=true;button.textContent='Preparing PDF…';
@@ -905,7 +910,10 @@ $('draftTradeEmail').addEventListener('click',async()=>{
    if(!response)return;
    subject=response.subject;body=response.body;
   }
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
+  if(window.TASMAndroid&&typeof window.TASMAndroid.emailPdf==='function'){
+   const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);reader.onerror=()=>reject(new Error('PDF conversion failed'));reader.readAsDataURL(blob)});
+   window.TASMAndroid.emailPdf(file.name,data,recipient,subject,body);
+  }else if(navigator.canShare&&navigator.canShare({files:[file]})){
    await navigator.share({files:[file],title:subject,text:body});
    // Browser share targets generally do not support guaranteed recipient prefill.
   }else{
