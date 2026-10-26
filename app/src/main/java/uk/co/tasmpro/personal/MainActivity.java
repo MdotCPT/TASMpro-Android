@@ -98,6 +98,59 @@ public class MainActivity extends Activity {
       });
     }
     @JavascriptInterface public void printPage(){runOnUiThread(()->web.evaluateJavascript("(function(){var r=document.body.classList.contains('req-unified-print');var e=document.getElementById(r?'reqUnifiedPrint':'printSheet');if(e&&e.innerHTML)TASMAndroid.printHtml(e.innerHTML,r);else alert('Report is empty');})()",null));}
+
+    @JavascriptInterface
+    public void sharePdf(String filename, String base64,
+                         String recipient, String subject, String body) {
+        new Thread(() -> {
+            try {
+                String safe = filename.replaceAll("[^a-zA-Z0-9._-]", "_");
+                if (!safe.toLowerCase().endsWith(".pdf")) safe += ".pdf";
+
+                File folder = new File(getCacheDir(), "reports");
+                if (!folder.exists() && !folder.mkdirs())
+                    throw new Exception("Cannot create reports folder");
+
+                File pdf = new File(folder, safe);
+                byte[] data = Base64.decode(base64, Base64.DEFAULT);
+
+                try (OutputStream out = new java.io.FileOutputStream(pdf)) {
+                    out.write(data);
+                }
+
+                Uri uri = FileProvider.getUriForFile(
+                    MainActivity.this,
+                    getPackageName() + ".fileprovider",
+                    pdf
+                );
+
+                runOnUiThread(() -> {
+                    try {
+                        Intent email = new Intent(Intent.ACTION_SEND);
+                        email.setType("application/pdf");
+                        email.putExtra(Intent.EXTRA_STREAM, uri);
+                        email.putExtra(Intent.EXTRA_SUBJECT, subject);
+                        email.putExtra(Intent.EXTRA_TEXT, body);
+                        if (recipient != null && !recipient.isEmpty())
+                            email.putExtra(Intent.EXTRA_EMAIL,
+                                new String[]{recipient});
+
+                        email.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        email.setClipData(
+                            ClipData.newUri(getContentResolver(), "TASMpro PDF", uri)
+                        );
+
+                        startActivity(Intent.createChooser(email, "Email TASMpro report"));
+                    } catch (Exception e) {
+                        toast("Could not open email: " + e.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                toast("Could not prepare PDF: " + e.getMessage());
+            }
+        }).start();
+    }
+
     @JavascriptInterface public void saveBase64(String filename,String mime,String base64){
       new Thread(()->{try{
         String safe=filename.replaceAll("[^a-zA-Z0-9._-]","_");if(safe.isEmpty())safe="TASMpro-file.pdf";

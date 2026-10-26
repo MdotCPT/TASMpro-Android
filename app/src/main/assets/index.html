@@ -901,7 +901,15 @@ $('draftTradeEmail').addEventListener('click',async()=>{
    if(!response)return;
    subject=response.subject;body=response.body;
   }
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
+  if(window.TASMAndroid && typeof window.TASMAndroid.sharePdf === 'function'){
+      const base64 = await new Promise((resolve,reject)=>{
+        const reader = new FileReader();
+        reader.onload = ()=>resolve(String(reader.result).split(',')[1]);
+        reader.onerror = ()=>reject(new Error('PDF conversion failed'));
+        reader.readAsDataURL(blob);
+      });
+      window.TASMAndroid.sharePdf(file.name,base64,recipient,subject,body);
+    }else if(navigator.canShare&&navigator.canShare({files:[file]})){
    await navigator.share({files:[file],title:subject,text:body});
    // Browser share targets generally do not support guaranteed recipient prefill.
   }else{
