@@ -6,8 +6,8 @@ android {
         applicationId 'uk.co.tasmpro.personal'
         minSdk 26
         targetSdk 35
-        versionCode 2
-        versionName '1.6.11-preview'
+        versionCode 3
+        versionName '1.6.12-rc1'
     }
     buildTypes { release { minifyEnabled false } }
     compileOptions {
