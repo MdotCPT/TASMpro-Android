@@ -89,7 +89,11 @@ public class MainActivity extends Activity {
       else if(data!=null&&data.getData()!=null)resultUris=new Uri[]{data.getData()};else if(cameraUri!=null)resultUris=new Uri[]{cameraUri};}
     fileCallback.onReceiveValue(resultUris);fileCallback=null;cameraUri=null;
   }
+  @Override public void onBackPressed(){
+    web.evaluateJavascript("(function(){return !!(window.tasmHandleAndroidBack && window.tasmHandleAndroidBack());})()", value->{if(!"true".equals(value))runOnUiThread(()->new android.app.AlertDialog.Builder(this).setTitle("Exit TASMpro?").setMessage("Are you sure you want to close the app?").setNegativeButton("Stay in App",(d,w)->{}).setPositiveButton("Exit App",(d,w)->finish()).show());});
+  }
   class Bridge{
+    @JavascriptInterface public void exitApp(){runOnUiThread(()->finish());}
     @JavascriptInterface public void printHtml(String html,boolean requisition){
       runOnUiThread(()->{
         try{
