@@ -65,7 +65,28 @@ public class MainActivity extends Activity {
             cameraUri=null;
             Intent gallery=new Intent(Intent.ACTION_OPEN_DOCUMENT);
             gallery.addCategory(Intent.CATEGORY_OPENABLE);
-            gallery.setType("image/*");
+            // Respect the HTML file input's accept attribute. Backup imports request
+            // application/json,.json, while snag photographs request image/*.
+            String[] accepted=params.getAcceptTypes();
+            boolean json=false;
+            boolean image=false;
+            if(accepted!=null)for(String raw:accepted){
+              if(raw==null)continue;
+              String type=raw.toLowerCase(java.util.Locale.ROOT);
+              if(type.contains("json")||type.contains(".json"))json=true;
+              if(type.startsWith("image/")||type.contains(".jpg")||type.contains(".png"))image=true;
+            }
+            if(json&&!image){
+              // Android document providers don't always label .json consistently.
+              // A broad picker permits selecting JSON from Downloads; JavaScript
+              // then verifies the extension and validates the backup contents.
+              gallery.setType("*/*");
+              gallery.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/json","text/plain","application/octet-stream"});
+            }else if(image){
+              gallery.setType("image/*");
+            }else{
+              gallery.setType("*/*");
+            }
             gallery.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivityForResult(gallery,PICK);
           }
