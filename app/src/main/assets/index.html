@@ -1523,14 +1523,32 @@ const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 function getSelectedTradePlots(){return [...document.querySelectorAll('#reportProjects .projectcheck:checked')].map(c=>c.value)}
 function openItem(name){creatingTrade=false;activeReportName=name;const d=read();$('tasmDeleteProject').hidden=mode!=='plots';$('tasmSaveTradeReport').hidden=true;$('tasmPurgeTradeReport').hidden=mode!=='trades';$('tasmSnagRegister').hidden=true;$('tasmReportLibrary').hidden=true;$('tasmReportDetail').hidden=false;$('tasmReportControls').hidden=false;$('tasmLibDetailTitle').textContent=(mode==='plots'?'Plot: ':'Trade: ')+name;
 const items=d.snags.filter(x=>String(mode==='plots'?x.project:x.trade||'Unassigned')===name);$('tasmLibDetailSummary').textContent=items.filter(x=>x.status!=='done'&&x.status!=='completed').length+' outstanding snag(s) · '+items.length+' total';
-$('reportScope').value=mode==='plots'?'all':'trade';$('reportScope').dispatchEvent(new Event('change',{bubbles:true}));tradeProjectFilterOpen=false;syncReportProjectFilter();// Plot reports have no report options: hide both the title and the entire panel.
-// Keep the controls mounted for the existing export logic, and restore them for trades.
+$('reportScope').value=mode==='plots'?'all':'trade';$('reportScope').dispatchEvent(new Event('change',{bubbles:true}));tradeProjectFilterOpen=false;syncReportProjectFilter();// Keep the report option controls available to the export code, but physically
+// remove them from the visible report layout for plot-specific reports.
+// CSS-only hiding proved unreliable in the Android WebView.
 const plotOnly=mode==='plots';
-$('tasmReportFilterPanel').hidden=plotOnly;
-$('tasmReportFilterPanel').style.setProperty('display',plotOnly?'none':'','important');
-$('tasmReportOptionsHeading').hidden=plotOnly;
-$('tasmReportOptionsHeading').style.setProperty('display',plotOnly?'none':'','important');
-$('tasmReportControls').classList.toggle('tasm-plot-report',plotOnly);
+const controls=$('tasmReportControls');
+const heading=$('tasmReportOptionsHeading');
+const panel=$('tasmReportFilterPanel');
+let parked=document.getElementById('tasmParkedReportOptions');
+if(!parked){
+  parked=document.createElement('div');
+  parked.id='tasmParkedReportOptions';
+  parked.hidden=true;
+  parked.style.setProperty('display','none','important');
+  document.body.appendChild(parked);
+}
+if(plotOnly){
+  parked.appendChild(heading);
+  parked.appendChild(panel);
+}else{
+  const summary=$('reportList');
+  controls.insertBefore(heading,summary);
+  controls.insertBefore(panel,summary);
+}
+controls.classList.toggle('tasm-plot-report',plotOnly);
+heading.hidden=plotOnly;
+panel.hidden=plotOnly;
 $('tasmLegacyScopeField').hidden=true;
 if(mode==='plots'){$('reportStatus').value='open';document.querySelectorAll('#reportProjects .projectcheck').forEach(c=>{c.checked=c.value===name});}else{$('reportStatus').value='open';$('reportStatus').dispatchEvent(new Event('change',{bubbles:true}));document.querySelectorAll('#reportProjects .projectcheck').forEach(c=>{c.checked=true});const trade=$('reportTrade');if(![...trade.options].some(x=>x.value===name)){const option=document.createElement('option');option.value=name;option.textContent=name;trade.add(option)}trade.value=name;trade.dispatchEvent(new Event('change',{bubbles:true}));}
 document.querySelector('#reportProjects')?.dispatchEvent(new Event('change',{bubbles:true}));$('reportTrade').dispatchEvent(new Event('change',{bubbles:true}));const preview=$('reportPreviewBtn');if(preview)preview.disabled=false;window.scrollTo(0,0);
